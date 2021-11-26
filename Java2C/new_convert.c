@@ -11,7 +11,7 @@
 #include <errno.h>
 #include <sys/wait.h>
 
-#include <classes.c>
+#include <template.c>
 
 #define MAX_OBJ 3
 #define MAX_CLASS 3
@@ -20,116 +20,122 @@
 #define SECOND_TO_MICRO 1000000
 
 
+char* create_c(char * filename) {
+	int len = strlen(filename);
+	
+	strcpy(filename, ".c");
+
+	return filename;
+}
+
+char* create_exe(char * filename) {
+	int len = strlen(filename);
+	
+	strcpy(filename, "_Makefile");
+
+	return filename;
+}
+
+FILE * openfile(char * file) {
+
+	FILE *fp = NULL;
+
+	// check whether it exits
+	if ((fp = fopen(file, "r") == NULL)) {
+		printf("no file exist : %s\n", filename);
+		exit(1);
+	}
+	return fp;
+}
 
 
-char* read_file(char* file_name) {
-    // 1. open file
-    FILE *fp = NULL;
-    if((fp = fopen(file_name, "r")) == NULL) {
-        printf("there is no file name %s\n", argv[1]);
-        exit(1);
-    }
+// q1.java -> q1
+char* getfilename(char * file) {
+	printf("getfilename");
+	int len = strlen(file);
+	char* filename;
 
-    // 2. read file by one line
-    int len; 
-    int line_no = 0;
-    char buf[BUFFER_SIZE];
+	char * pos = strtok(file, ".java");
+	filename = pos;	
+	while(pos != NULL) {
+		pos = strtok(NULL, ".java");
+		if(pos != NULL && strcmp(pos,".java") != 0)
+			filename = pos;
+	}
+	return filename;
 
-    while(!feof(fp)) //if it is not an end of file
-    {
-        fgets(buf, BUFFER_SIZE, fp);
-        low[line_no] = (char *)malloc(sizeof(buf));
-        strcpy(low[line_no], buf);
+}
 
-        // if there is definition of Class
-        if(strstr(buf, "class") != NULL) {
-            class_setting(buf, line_no);
-            if(class_num >= 1) //class시작전 지우기
-               for(i=1; i<line_no; i++)
-                   if(strcmp(low[line_no-i],"\n")){
-                       strcpy(low[line_no-i], " ");
-                       break;
-                   }class_num++;
-        }
-        line_no++;
-    }
-    fclose(fp);
-    setHeader(header);
+// public class q1{ +2
+// BUT!! what if class definition looks like
+// public class q1 { 
+void class_setting(int class_no, char *buf, int linelen) {
+	char * ptr = strtok(buf, " ");
+	
+	while (strcmp(ptr, "{") >= 0) 
+		ptr = strtok(NULL,  " ");
+	
+
+	strtok(ptr, "{");
+	class[class_no].name = (char*)malloc(sizeof(ptr));
+	strcpy(class[class_no].name, ptr);
+
+	// q1 new();
+	// constructor > 생성자도... 저장..? 굳이/..?
+
+	//	init
+	class[class_no].num_obj = 0;
+	class[class_no].linelen = linelen;
 
 }
 
 
-typedef struct Class {
 
-    char* name;
-    char* constructor;//생성함수 new Stack();
-    char* obj[MAX_OBJ]; //한 클래스당 객체 MAX_OBJ개 생성 가능
-    int num_obj; //obj 개수
-    int linelen; //몇번째 줄에서 class가 시작되는지
-}Class;
+void readfile(FILE * fp) {
 
-/******************to define class***********/
-//새로운 class가 들어왔을 경우 새로운 class가 시작되는 줄의 위치 linelen에 기록
-//class의 이름을 구조체 class 의 name에 저장
-//class의 생성자 함수인 new name(); 을 constructor 에 저장
-void class_setting(char* buf, int linelen) {
-    int i;
-    bool class_case;
-    bool loop = true;
-    // class_case
-    // true. public class ql {
-    // false. public class q1{ 
-    char* ptr = strtok(buf, " ");
+	int row = 0;
+	int class_no = 0;
+	char *line[100] // what if longer than 100 lines?
+	char buf[BUFFER_SIZE];
 
-    while(loop) {
-        if (strstr(ptr, " {") == NULL) {
-            loop = false;
-            strtok(ptr, " {");
-        }
-        else if (strstr(ptr, "{") == NULL) {
-            loop = false;
-            strtok(ptr, "{");
+	while(!feof(fp)) 
+     {
+         fgets(buf, BUFFER_SIZE, fp);
+         line[row] = (char *)malloc(sizeof(buf));
+         strcpy(line[row], buf);
 
-        }
-        else
-            ptr = strtok(NULL, " ");
-    }
-
-    class[class_num].name = (char*)malloc(sizeof(ptr));
-    strcpy(class[class_num].name, ptr);
-
-    if(class_case) {
-        
-    }
-
-    
-    strcpy(ptr, "new ");
-    strcat(ptr, class[class_num].name);
-    strcat(ptr, "();");
-    class[class_num].constructor = (char*)malloc(sizeof(ptr));
-    strcpy(class[class_num].constructor, ptr); 
-
-    class[class_num].num_obj = 0;
-    class[class_num].linelen = linelen;
+		// class definintion
+         if(strstr(buf, "class") != NULL) {
+			
+             class_setting(class_no ,buf, linelen);
+             if(class_no >= 1) //class시작전 지우기
+                for(i=1; i<linelen; i++)
+                    if(strcmp(low[linelen-i],"\n")){
+                        strcpy(low[linelen-i], " ");
+                        break;
+                    }class_no++;
+         }row++;
+     }
+     fclose(fp);
 }
 
+	
 
 int main(int argc, char* argv[]) {
 
     struct timeval begin_t, end_t;
-    int i = 0;
-    int j = 0;
-    int linelen = 0;
     FILE *fp = NULL;
-    char *low[100];
-    clow clow[100]; //there are char* low & int len(which represent the length of the low)
-    char buf[BUFFER_SIZE];
-    char *filename;
-    Header header[3];
+    char *filename, cfile, exefile ;
 
-    gettimeofday(&begin_t, NULL);
-    getfilename(argv[1]);
+    //gettimeofday(&begin_t, NULL);
+	fp = openfile(argv[1]);
+    filename = getfilename(argv[1]);
+	cfile = create_c(filename);
+	exefile = create_exe(filename);
 
-    read_file(argv[1])
 
-    
+	// read file one by one
+	readfile(fp)
+	printf("%s\n", filename);
+
+} 
